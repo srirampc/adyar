@@ -10,11 +10,11 @@ Approximate Common Substring
 * [sdsl-lite](https://github.com/simongog/sdsl-lite) is included as a submodule.
 * For increased performance of SDSL, the processor of the system should support fast bit operations available in `SSE4.2`
 
-## Compiling the code
+### Compiling the code
 
 The program can be compiled in one of the following two ways
 
-## Compiling without cmake
+### Compiling without cmake
 First, Install sdsl library at the default location (i.e., home directory). Then, compile the src/main.cpp as follows:
 
      g++ -std=c++11 -O3 -DNDEBUG -I ~/include -L ~/lib src/main.cpp -o adyar.x -lsdsl -ldivsufsort -ldivsufsort64
