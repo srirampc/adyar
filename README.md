@@ -21,7 +21,7 @@ First, Install sdsl library at the default location (i.e., home directory). Then
 
 ### Compiling with cmake
 
-[sdsl-lite](https://github.com/simongog/sdsl-lite)  library is included as a submodule. Initialize the submodule as below, if they are not already initialized.
+Install [cmake](https://cmake.org/), if not already installed. [sdsl-lite](https://github.com/simongog/sdsl-lite) library is included as a submodule. Initialize the submodule as below.
 
      git submodule init
      git submodule update

@@ -29,3 +29,4 @@ target_link_libraries(${PROJECT_EXEC} sdsl divsufsort divsufsort64)
 
 
 configure_file(${PROJECT_SOURCE_DIR}/data/text.txt . COPYONLY)
+configure_file(${PROJECT_SOURCE_DIR}/data/input.txt . COPYONLY)
