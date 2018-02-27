@@ -162,24 +162,22 @@ int forward_match(std::string const& T, int pos1, int pos2, int k, int m, int n)
 	return lcp;
 }
 
-void compute_acsk(RunArgs& args, GST& gst, 
+void compute_lcpk_kmacs(RunArgs& args, GST& gst, 
 				  std::vector<int>& match_length,
 				  std::vector<int>& left_match,
-				  std::vector<int>& right_match){
-    int n = gst.text.length() + 1;
+				  std::vector<int>& right_match,
+				  std::vector<int>& lcpk_kmacs){
+	int n = gst.text.length() + 1;
 	int m = args.y.length();
-	std::vector<int> s1(n-m-2, 0);
-	std::vector<int> s2(m, 0);
-	std::vector<int> sk(n, 0);
-	int pos1, p, max=0, pos2=0, flag=0, lcp;
+	lcpk_kmacs.resize(n, 0);
 
-	// calculate sk-array
+	// calculate lcpk_kmacs-array
 	for(int i=0; i<n; i++) {
-		sk[i] = match_length[i];
-		pos1 = gst.SA[i]+match_length[i]+1;
-		pos2 = 0;
-		max = 0;
-		flag=0;
+		lcpk_kmacs[i] = match_length[i];
+		int pos1 = gst.SA[i]+match_length[i]+1;
+		int pos2 = 0;
+		int max = 0;
+		int flag=0, p, lcp;
 
 		// forward matching char by char
 		if(gst.SA[i] < n-m-2){
@@ -219,7 +217,7 @@ void compute_acsk(RunArgs& args, GST& gst,
 				left_match[i] = 0;
 				right_match[i] = pos2;
 			}
-			sk[i] = match_length[i]+max;
+			lcpk_kmacs[i] = match_length[i]+max;
 		}
 		else if(gst.SA[i] > n-m-2){
 			if(left_match[i]>0 && pos1 < n){
@@ -258,74 +256,86 @@ void compute_acsk(RunArgs& args, GST& gst,
 				left_match[i] = 0;
 				right_match[i] = pos2;
 			}
-			sk[i] = match_length[i]+max;
+			lcpk_kmacs[i] = match_length[i]+max;
 		}
 
-	}
+	}	
+}
 
-	for(int i=1; i<n; i++) {
+void compute_acsk(RunArgs& args, GST& gst, 
+				  std::vector<int>& match_length,
+				  std::vector<int>& left_match,
+				  std::vector<int>& right_match){
+
+	// lcpk based on k-macs's heuristic
+	std::vector<int> lcpk_kmacs;
+
+	compute_lcpk_kmacs(args, gst, match_length, 
+					   left_match, right_match, lcpk_kmacs);
+
+    int n = gst.text.length() + 1;
+	int m = args.y.length();
+	std::vector<int> max_match(n, 0);
+
+	for(int i=0; i<n; i++) {
 		if(left_match[i] < right_match[i])
-			left_match[i] = right_match[i];
+			max_match[i] = right_match[i];
+		else
+			max_match[i] = left_match[i];
 		//cout << i << " "<< gst.SA[left_match[i]] << endl;
 	}
 
 	// backward and forward search and storage of missmatches for each i
-	int missmatch_position[2*args.k+2];
-	for(int i=0;i<(2*args.k)+2;i++){missmatch_position[i] = -1;}
-	int k_counter;
-	int j=0, substring_len=0;
-	//cout << "doing matching..." << endl;
-	for(int i=1; i<n; i++) { // skip i = 0
+	for(int i=2; i<n; i++) { // skip i = 0 and i = 1 as first two chars are string terminatros
+		std::vector<int> mismatch_position(2*args.k+2, -1);
+		int kidx = args.k, substring_len=0;
 		// initialize pos1 , pos2
-		pos1 = gst.SA[i]; pos2 = gst.SA[left_match[i]];
-		k_counter = args.k;
+		int pos1 = gst.SA[i], pos2 = gst.SA[max_match[i]];
 		//backward matching
 		//cout << "entering backward while loop at " << i << endl;
-		while(((pos1 < n-m-2 && pos2 > n-m-2) || (pos1 > n-m-2 && pos2 < n-m-2)) && k_counter >= 0 && pos1 >= 0 && pos2 >= 0) {
+		while(((pos1 < n-m-2 && pos2 > n-m-2) || (pos1 > n-m-2 && pos2 < n-m-2)) && kidx >= 0 && pos1 >= 0 && pos2 >= 0) {
 			if(gst.text[pos1] == gst.text[pos2]) {
 				pos1--; pos2--;
 			}
 			else {
-				missmatch_position[k_counter] = pos1+1; pos1--; pos2--; k_counter--;
+				mismatch_position[kidx] = pos1+1; pos1--; pos2--; kidx--;
 			}
 		}
 		//forward matching
-		pos1 = gst.SA[i] + match_length[i] + 1; pos2 = gst.SA[left_match[i]] + match_length[i] + 1;
-		k_counter = args.k;
+		pos1 = gst.SA[i] + match_length[i] + 1; pos2 = gst.SA[max_match[i]] + match_length[i] + 1;
+		kidx = args.k;
 		//cout << "entering forward while loop at " << i << endl;
-		while(((pos1 < n-m-2 && pos2 > n-m-2) || (pos1 > n-m-2 && pos2 < n-m-2)) && k_counter >= 0 && pos1 < n && pos2 < n) {
+		while(((pos1 < n-m-2 && pos2 > n-m-2) || (pos1 > n-m-2 && pos2 < n-m-2)) && kidx >= 0 && pos1 < n && pos2 < n) {
 			if(gst.text[pos1] == gst.text[pos2]) {
 				pos1++; pos2++;
 			}
 			else {
-				missmatch_position[2*args.k -k_counter+1] = pos1-1; k_counter--;
+				mismatch_position[2*args.k -kidx+1] = pos1-1; kidx--;
 			}
 		}
 		// for each missmatch compair sk[i] and [k+j+1]th - [j]th
-		// elements of missmatch_position array replace if less
-		j=0;
-		for(j=0;j<=args.k;j++){
-			if(missmatch_position[j] == -1 || missmatch_position[j+args.k+1] == -1)
+		// elements of mismatch_position array replace if less
+		for(int j=0;j<=args.k;j++){
+			if(mismatch_position[j] == -1 || mismatch_position[j+args.k+1] == -1)
 				continue;
-			substring_len = missmatch_position[args.k+j+1] - missmatch_position[j]+1;
-			if(substring_len>sk[missmatch_position[j]])
-				sk[missmatch_position[j]] = substring_len;
+			substring_len = mismatch_position[args.k+j+1] - mismatch_position[j]+1;
+			if(substring_len>lcpk_kmacs[mismatch_position[j]])
+				lcpk_kmacs[mismatch_position[j]] = substring_len;
 		}
-		j=0;
-		for(j=0;j<(2*args.k)+2;j++){missmatch_position[j] = -1;}
 	}
 	//cout << "done with heavy stuff" << endl;
 	// modify sk-array so that sk[i] = x implies sk[i+1] >= x-1
 	for(int i=1;i<n;i++){
-		if(sk[i] > sk[gst.ISA[gst.SA[i] + 1]])
-			sk[gst.ISA[gst.SA[i] + 1]] = sk[i] - 1;
+		if(lcpk_kmacs[i] > lcpk_kmacs[gst.ISA[gst.SA[i] + 1]])
+			lcpk_kmacs[gst.ISA[gst.SA[i] + 1]] = lcpk_kmacs[i] - 1;
 	}
 
+	std::vector<int> s1(n-m-2, 0), s2(m, 0);
 	for(int i=1; i<n-1; i++) {
 		if (gst.SA[i] >= n-m-1)
-			s2[gst.SA[i]-(n-m-1)] = sk[i];
+			s2[gst.SA[i]-(n-m-1)] = lcpk_kmacs[i];
 		if (gst.SA[i] <= n-m-3)
-			s1[gst.SA[i]] = sk[i];
+			s1[gst.SA[i]] = lcpk_kmacs[i];
 	}
 	//for(i=0; i<n-m-2; i++) {cout << s1[i] << endl;}
 	//for(i=0; i<m; i++) {cout << s2[i] << endl;}
