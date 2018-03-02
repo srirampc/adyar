@@ -329,7 +329,7 @@ void compute_acsk(RunArgs& args, GST& gst,
 			max_match[i] = right_match[i];
 		else
 			max_match[i] = left_match[i];
-		//cout << i << " "<< gst.SA[left_match[i]] << endl;
+
 	}
 
 	// backward and forward search and storage of missmatches for each i
@@ -339,7 +339,7 @@ void compute_acsk(RunArgs& args, GST& gst,
 		// initialize pos1 , pos2
 		int pos1 = gst.SA[i], pos2 = gst.SA[max_match[i]];
 		//backward matching
-		//cout << "entering backward while loop at " << i << endl;
+
 		while(((pos1 < n-m-2 && pos2 > n-m-2) || (pos1 > n-m-2 && pos2 < n-m-2)) && kidx >= 0 && pos1 >= 0 && pos2 >= 0) {
 			if(gst.text[pos1] == gst.text[pos2]) {
 				pos1--; pos2--;
@@ -353,7 +353,7 @@ void compute_acsk(RunArgs& args, GST& gst,
 		//forward matching
 		pos1 = gst.SA[i] + match_length[i] + 1; pos2 = gst.SA[max_match[i]] + match_length[i] + 1;
 		kidx = args.k;
-		//cout << "entering forward while loop at " << i << endl;
+
 		while(((pos1 < n-m-2 && pos2 > n-m-2) || (pos1 > n-m-2 && pos2 < n-m-2)) && kidx >= 0 && pos1 < n && pos2 < n) {
 			if(gst.text[pos1] == gst.text[pos2]) {
 				pos1++; pos2++;
@@ -374,7 +374,7 @@ void compute_acsk(RunArgs& args, GST& gst,
 				lcpk_kmacs[mismatch_position[j]] = substring_len;
 		}
 	}
-	//cout << "done with heavy stuff" << endl;
+
 	// modify sk-array so that sk[i] = x implies sk[i+1] >= x-1
 	for(int i=1;i<n;i++){
 		if(lcpk_kmacs[i] > lcpk_kmacs[gst.ISA[gst.SA[i] + 1]])
@@ -388,8 +388,7 @@ void compute_acsk(RunArgs& args, GST& gst,
 		if (gst.SA[i] <= n-m-3)
 			s1[gst.SA[i]] = lcpk_kmacs[i];
 	}
-	//for(i=0; i<n-m-2; i++) {cout << s1[i] << endl;}
-	//for(i=0; i<m; i++) {cout << s2[i] << endl;}
+
 	// calculate avgs1 and svgs2 and d_acs
 	double avg_s1=0, avg_s2=0;
 	for(int i=0; i<n-m-2; i++) {avg_s1 += s1[i];}
