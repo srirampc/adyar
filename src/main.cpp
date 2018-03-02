@@ -23,6 +23,27 @@ struct GST{
 	std::string text;
 };
 
+std::string parse_file(std::ifstream& fobj){
+	/*parses one sequence in the fasta file and puts curser at
+	the next sequence*/
+  std::string line, content;
+  std::getline(fobj,line);
+  if(line[0] == '>'){
+    while(std::getline(fobj, line).good()){
+      if(line[0] == '>' || line.empty()){
+        return content;
+      }
+      else{
+        content += line;
+      }
+    }
+  }
+  else{
+    std::cout << "input file is not fasta format." << std::endl;
+  }
+  return content;
+}
+
 void read_input(int argc, char *argv[],
 				RunArgs& args) {
 	std::string fname(argv[1]);
@@ -32,8 +53,8 @@ void read_input(int argc, char *argv[],
 	file_object.open(fname);
 	std::string text1 = "";
 	std::string text2;
-	file_object >> text1;
-	file_object >> text2;
+	text1 = parse_file(file_object);
+	text2 = parse_file(file_object);
 	file_object.close();
 
 	args.x = trim(text1);
@@ -60,7 +81,7 @@ void construct_gst(std::string& sx, std::string& sy, GST& gst){
 	std::cout << "gst.ISA.size()     : " << gst.ISA.size() << std::endl;
 }
 
-void find_matches(RunArgs& args, GST& gst, 
+void find_matches(RunArgs& args, GST& gst,
                   std::vector<int>& match_length,
 				  std::vector<int>& left_match,
 				  std::vector<int>& right_match){
@@ -121,7 +142,7 @@ void find_matches(RunArgs& args, GST& gst,
 	}
 }
 
-void compute_acs_zero(RunArgs& args, GST& gst, 
+void compute_acs_zero(RunArgs& args, GST& gst,
               std::vector<int>& match_length){
     int n = gst.text.length() + 1;
 	int m = args.y.length();
@@ -129,7 +150,7 @@ void compute_acs_zero(RunArgs& args, GST& gst,
 	std::vector<int> s2(m, 0);
 
 	// break s-array into individual s-i-array for each text-i and
-	// reorder to lexographical order 
+	// reorder to lexographical order
 	for(int i=2; i<n; i++) { // start from 2 since first two are bad.
 		if (gst.SA[i] >= n-m-1)
 			s2[gst.SA[i]-(n-m-1)] = match_length[i];
@@ -162,7 +183,7 @@ int forward_match(std::string const& T, int pos1, int pos2, int k, int m, int n)
 	return lcp;
 }
 
-void compute_lcpk_kmacs(RunArgs& args, GST& gst, 
+void compute_lcpk_kmacs(RunArgs& args, GST& gst,
 				  std::vector<int>& match_length,
 				  std::vector<int>& left_match,
 				  std::vector<int>& right_match,
@@ -259,10 +280,33 @@ void compute_lcpk_kmacs(RunArgs& args, GST& gst,
 			lcpk_kmacs[i] = match_length[i]+max;
 		}
 
-	}	
+	}
 }
 
-void compute_acsk(RunArgs& args, GST& gst, 
+void compute_acsk_kmacs(RunArgs& args, GST& gst, std::vector<int>& lcpk_kmacs){
+	int n = gst.text.length() + 1;
+	int m = args.y.length();
+	std::vector<int> s1(n-m-2, 0), s2(m, 0);
+  for(int i=1; i<n-1; i++) {
+	 if (gst.SA[i] >= n-m-1)
+		 s2[gst.SA[i]-(n-m-1)] = lcpk_kmacs[i];
+	 if (gst.SA[i] <= n-m-3)
+		 s1[gst.SA[i]] = lcpk_kmacs[i];
+ }
+
+ // calculate avgs1 and svgs2 and d_acs
+ double avg_s1=0, avg_s2=0;
+ for(int i=0; i<n-m-2; i++) {avg_s1 += s1[i];}
+ avg_s1 = avg_s1/(n-m-2);
+ for(int i=0; i<m; i++) {avg_s2 += s2[i];}
+ avg_s2 = avg_s2/m;
+
+ double d_acs=0;
+ d_acs = ((log10(n-m-2)/(2*avg_s2)) + (log10(m)/(2*avg_s1))) - ((log10(n-m-2)/((n-m-2))) + (log10(m)/(m)));
+ std::cout << "ACS_KMACS for k= " << args.k << " : " << d_acs << std::endl;
+}
+
+void compute_acsk(RunArgs& args, GST& gst,
 				  std::vector<int>& match_length,
 				  std::vector<int>& left_match,
 				  std::vector<int>& right_match){
@@ -270,8 +314,11 @@ void compute_acsk(RunArgs& args, GST& gst,
 	// lcpk based on k-macs's heuristic
 	std::vector<int> lcpk_kmacs;
 
-	compute_lcpk_kmacs(args, gst, match_length, 
+	compute_lcpk_kmacs(args, gst, match_length,
 					   left_match, right_match, lcpk_kmacs);
+
+	// to calculate and print acsk based in k-macs
+	compute_acsk_kmacs(args, gst , lcpk_kmacs);
 
     int n = gst.text.length() + 1;
 	int m = args.y.length();
@@ -298,6 +345,8 @@ void compute_acsk(RunArgs& args, GST& gst,
 				pos1--; pos2--;
 			}
 			else {
+				if((pos1 < n-m-2 && pos2 < n-m-2) || (pos1 > n-m-2 && pos2 > n-m-2)) //checks for '$' crossover
+					break;
 				mismatch_position[kidx] = pos1+1; pos1--; pos2--; kidx--;
 			}
 		}
@@ -310,6 +359,8 @@ void compute_acsk(RunArgs& args, GST& gst,
 				pos1++; pos2++;
 			}
 			else {
+				if((pos1 < n-m-2 && pos2 < n-m-2) || (pos1 > n-m-2 && pos2 > n-m-2)) //checks for '$' crossover
+					break;
 				mismatch_position[2*args.k -kidx+1] = pos1-1; kidx--;
 			}
 		}
@@ -365,7 +416,7 @@ int main(int argc, char *argv[]) {
 
 	std::vector<int> match_length, left_match, right_match;
 
-    // find the longest matching suffixes to the left and right 
+    // find the longest matching suffixes to the left and right
 	//  of suffix in GST
     find_matches(args, gst, match_length, left_match, right_match);
 
@@ -375,7 +426,7 @@ int main(int argc, char *argv[]) {
 	else {
         compute_acsk(args, gst, match_length, left_match, right_match);
 	}
-	
+
 	t = clock() - t;
 	std::cout << "time = " << (float)t/CLOCKS_PER_SEC << " (s) " << std::endl;
 	return 0;
