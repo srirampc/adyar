@@ -11,6 +11,7 @@
 #include "util.hpp"
 
 struct RunArgs{
+	std::vector<std::string> text_vector;
 	std::string x;
 	std::string y;
 	int k;
@@ -23,25 +24,20 @@ struct GST{
 	std::string text;
 };
 
-std::string parse_file(std::ifstream& fobj){
-	/*parses one sequence in the fasta file and puts curser at
-	the next sequence*/
-  std::string line, content;
-  std::getline(fobj,line);
-  if(line[0] == '>'){
+void parse_file(RunArgs& args, std::ifstream& fobj){
+	/*parses all sequences in the fasta file and stores in
+  string vector*/
+  std::string line, temp;
     while(std::getline(fobj, line).good()){
-      if(line[0] == '>' || line.empty()){
-        return content;
+      if(line[0] == '>' && !temp.empty()){
+        args.text_vector.push_back(temp);
+        temp = "";
       }
-      else{
-        content += line;
+      else if(line[0] != '>'){
+        temp += line;
       }
     }
-  }
-  else{
-    std::cout << "input file is not fasta format." << std::endl;
-  }
-  return content;
+    args.text_vector.push_back(temp);
 }
 
 void read_input(int argc, char *argv[],
@@ -51,14 +47,11 @@ void read_input(int argc, char *argv[],
 
 	std::ifstream file_object;
 	file_object.open(fname);
-	std::string text1 = "";
-	std::string text2;
-	text1 = parse_file(file_object);
-	text2 = parse_file(file_object);
+	parse_file(args, file_object);
 	file_object.close();
 
-	args.x = trim(text1);
-	args.y = trim(text2);
+	args.x = trim(args.text_vector.at(0));
+	args.y = trim(args.text_vector.at(1));
 
 	std::cout << "# mismatches (k)  : " << args.k << std::endl;
 	std::cout << "X length          : " << args.x.length() << std::endl;
@@ -306,6 +299,36 @@ void compute_acsk_kmacs(RunArgs& args, GST& gst, std::vector<int>& lcpk_kmacs){
  std::cout << "ACS_KMACS for k= " << args.k << " : " << d_acs << std::endl;
 }
 
+void verify_acsk(RunArgs& args, GST& gst, std::vector<int>& lcpk_kmacs, std::vector<int>& max_match){
+	/*prints if # missmatches > k for all i in text*/
+	int max_length = 0;
+	int position_max_match = 0, position_i = 0;
+	int count = 0;
+	int n = gst.text.length() + 1;
+	int num_err = 0;
+	for(int i=2; i<n; i++){ // skip 0 and 1 in SA
+		max_length = lcpk_kmacs[i];
+		position_max_match = gst.SA[max_match[i]];
+		position_i = gst.SA[i];
+		count = 0;
+		while(max_length){
+			if(gst.text[position_i] == gst.text[position_max_match]){
+				position_i++; position_max_match++;
+			}
+			else{
+				count++;
+				position_i++; position_max_match++;
+			}
+			max_length--;
+		}
+		if(count > args.k){
+			std::cout << i << ": " << count << std::endl;
+			num_err += 1;
+		}
+	}
+	std::cout << "Number of errors :" << num_err << std::endl;
+}
+
 void compute_acsk(RunArgs& args, GST& gst,
 				  std::vector<int>& match_length,
 				  std::vector<int>& left_match,
@@ -331,7 +354,12 @@ void compute_acsk(RunArgs& args, GST& gst,
 			max_match[i] = left_match[i];
 
 	}
+	// to verify k-macs algorithm
+	//verify_acsk(args, gst, lcpk_kmacs, max_match);
 
+	int offset = 0, origin_position = 0;
+	std::vector<int> max_match_new(n, 0);
+	for(int i=0; i<n; i++){max_match_new[i] = max_match[i];}
 	// backward and forward search and storage of missmatches for each i
 	for(int i=2; i<n; i++) { // skip i = 0 and i = 1 as first two chars are string terminatros
 		std::vector<int> mismatch_position(2*args.k+2, -1);
@@ -366,12 +394,19 @@ void compute_acsk(RunArgs& args, GST& gst,
 		}
 		// for each missmatch compair sk[i] and [k+j+1]th - [j]th
 		// elements of mismatch_position array replace if less
+
 		for(int j=0;j<=args.k;j++){
 			if(mismatch_position[j] == -1 || mismatch_position[j+args.k+1] == -1)
 				continue;
 			substring_len = mismatch_position[args.k+j+1] - mismatch_position[j]+1;
-			if(substring_len>lcpk_kmacs[mismatch_position[j]])
+			if(substring_len>lcpk_kmacs[mismatch_position[j]]){
 				lcpk_kmacs[mismatch_position[j]] = substring_len;
+				/*modify max_match_new[] to reflect new lcpk_kmacs value,
+				needed for verify_acsk() function */
+				origin_position = gst.SA[max_match[i]];
+				offset = gst.SA[i] - mismatch_position[j];
+				max_match_new[gst.ISA[mismatch_position[j]]] = gst.ISA[origin_position - offset];
+			}
 		}
 	}
 
@@ -380,6 +415,12 @@ void compute_acsk(RunArgs& args, GST& gst,
 		if(lcpk_kmacs[i] > lcpk_kmacs[gst.ISA[gst.SA[i] + 1]])
 			lcpk_kmacs[gst.ISA[gst.SA[i] + 1]] = lcpk_kmacs[i] - 1;
 	}
+	/*for(int i=0; i<n; i++){
+		if(max_match[i] != max_match_new[i])
+			std::cout << i << ": "<< max_match[i] << ": " << max_match_new[i] << std::endl;
+	}*/
+	// to verify adyar algorithm
+	verify_acsk(args, gst, lcpk_kmacs, max_match_new);
 
 	std::vector<int> s1(n-m-2, 0), s2(m, 0);
 	for(int i=1; i<n-1; i++) {
