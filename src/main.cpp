@@ -299,31 +299,42 @@ void compute_acsk_kmacs(RunArgs& args, GST& gst, std::vector<int>& lcpk_kmacs){
  std::cout << "ACS_KMACS for k= " << args.k << " : " << d_acs << std::endl;
 }
 
-void verify_acsk(RunArgs& args, GST& gst, std::vector<int>& lcpk_kmacs, std::vector<int>& max_match){
+int verify_acsk_at(RunArgs& args, GST& gst, 
+				   int pos, int match_pos,
+				   int max_length){
+	int	count = 0;
+
+	while(max_length){
+		if(gst.text[pos] == gst.text[match_pos]){
+			pos++; match_pos++;
+		}
+		else{
+			count++;
+			pos++; match_pos++;
+		}
+		max_length--;
+	}
+	if(count > args.k){
+		return count;
+	} else {
+		return 0;
+	}
+}
+
+void verify_acsk(RunArgs& args, GST& gst, 
+				 std::vector<int>& lcpk_kmacs, 
+				 std::vector<int>& max_match){
 	/*prints if # missmatches > k for all i in text*/
-	int max_length = 0;
-	int position_max_match = 0, position_i = 0;
-	int count = 0;
 	int n = gst.text.length() + 1;
 	int num_err = 0;
 	for(int i=2; i<n; i++){ // skip 0 and 1 in SA
-		max_length = lcpk_kmacs[i];
-		position_max_match = gst.SA[max_match[i]];
-		position_i = gst.SA[i];
-		count = 0;
-		while(max_length){
-			if(gst.text[position_i] == gst.text[position_max_match]){
-				position_i++; position_max_match++;
-			}
-			else{
-				count++;
-				position_i++; position_max_match++;
-			}
-			max_length--;
-		}
-		if(count > args.k){
+		int count = verify_acsk_at(args, gst, 
+								   gst.SA[i], 
+								   gst.SA[max_match[i]],
+								   lcpk_kmacs[i]);
+		if(count > 0){
 			std::cout << i << ": " << count << std::endl;
-			num_err += 1;
+			num_err++;
 		}
 	}
 	std::cout << "Number of errors :" << num_err << std::endl;
