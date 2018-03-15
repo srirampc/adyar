@@ -12,9 +12,13 @@
 
 struct RunArgs{
 	std::vector<std::string> text_vector;
+	std::vector<std::string> title_vector;
 	std::string x;
 	std::string y;
-	int k;
+	int k; // number of mismatches
+	int m; // number of strings
+	std::vector<double> d_vector;
+	std::vector<std::vector<double>> d_matrix;
 };
 
 struct GST{
@@ -27,17 +31,23 @@ struct GST{
 void parse_file(RunArgs& args, std::ifstream& fobj){
 	/*parses all sequences in the fasta file and stores in
   string vector*/
+	int count = 0;
   std::string line, temp;
     while(std::getline(fobj, line).good()){
-      if(line[0] == '>' && !temp.empty()){
+      if(line[0] == '>'){
+				args.title_vector.push_back(line.substr(1));
+				count += 1;
+				if(!temp.empty()){
         args.text_vector.push_back(temp);
         temp = "";
+				}
       }
       else if(line[0] != '>'){
         temp += line;
       }
     }
     args.text_vector.push_back(temp);
+		args.m = count;
 }
 
 void read_input(int argc, char *argv[],
@@ -50,12 +60,20 @@ void read_input(int argc, char *argv[],
 	parse_file(args, file_object);
 	file_object.close();
 
+	/*
 	args.x = trim(args.text_vector.at(0));
 	args.y = trim(args.text_vector.at(1));
 
 	std::cout << "# mismatches (k)  : " << args.k << std::endl;
 	std::cout << "X length          : " << args.x.length() << std::endl;
 	std::cout << "Y length          : " << args.y.length() << std::endl;
+	std::cout << args.m << std::endl;
+	*/
+}
+
+void assign_strings(RunArgs& args, int i, int j){
+	args.x = trim(args.text_vector.at(i));
+	args.y = trim(args.text_vector.at(j));
 }
 
 void construct_gst(std::string& sx, std::string& sy, GST& gst){
@@ -67,11 +85,12 @@ void construct_gst(std::string& sx, std::string& sy, GST& gst){
 	for(auto i=0u; i < gst.SA.size(); i++) {
 		gst.ISA[gst.SA[i]] = i;
 	}
-
+/*
 	std::cout << "gst.text.length()  : " << gst.text.length() << std::endl;
 	std::cout << "gst.SA.size()      : " << gst.SA.size() << std::endl;
 	std::cout << "gst.LCP.size()     : " << gst.LCP.size() << std::endl;
 	std::cout << "gst.ISA.size()     : " << gst.ISA.size() << std::endl;
+	*/
 }
 
 void find_matches(RunArgs& args, GST& gst,
@@ -159,7 +178,8 @@ void compute_acs_zero(RunArgs& args, GST& gst,
 
 	double d_acs=0;
 	d_acs = ((log10(n-m-2)/(2*avg_s2)) + (log10(m)/(2*avg_s1))) - ((log10(n-m-2)/((n-m-2))) + (log10(m)/(m)));
-	std::cout << "ACS for k=0 : " << d_acs << std::endl;
+	//std::cout << "ACS for k=0 : " << d_acs << std::endl;
+	args.d_vector.push_back(d_acs);
 }
 
 
@@ -353,7 +373,7 @@ void compute_acsk(RunArgs& args, GST& gst,
 					   left_match, right_match, lcpk_kmacs);
 
 	// to calculate and print acsk based in k-macs
-	compute_acsk_kmacs(args, gst , lcpk_kmacs);
+	//compute_acsk_kmacs(args, gst , lcpk_kmacs);
 
     int n = gst.text.length() + 1;
 	int m = args.y.length();
@@ -462,7 +482,49 @@ void compute_acsk(RunArgs& args, GST& gst,
 
 	double d_acs=0;
 	d_acs = ((log10(n-m-2)/(2*avg_s2)) + (log10(m)/(2*avg_s1))) - ((log10(n-m-2)/((n-m-2))) + (log10(m)/(m)));
-	std::cout << "ACS for k= " << args.k << " : " << d_acs << std::endl;
+	//std::cout << "ACS for k= " << args.k << " : " << d_acs << std::endl;
+	args.d_vector.push_back(d_acs);
+}
+void fill_2D_dmatrix(RunArgs& args){
+	std::vector<std::vector<double>> matrix(args.m, std::vector<double>(args.m,0));
+	args.d_matrix = matrix;
+	//populate d_matrix using d_vector
+	int idx=0;
+	float value;
+	for(auto i=0; i<args.m; i++){
+		for(auto j=i+1; j<args.m; j++){
+			value = args.d_vector[idx];
+			//std::cout << value << std::endl;
+			args.d_matrix[i][j] = value;
+			args.d_matrix[j][i] = value;
+			idx += 1;
+		}
+	}
+}
+
+void write_dmatrix(std::vector<std::vector<double>>& d_matrix,
+																std::vector<std::string>& title,
+															 	std::ofstream& file_object){
+	unsigned nReads = d_matrix.size();
+	file_object << nReads << std::endl;
+	for(auto i=0; i<nReads; i++){
+		std::string name = title[i];
+		if(name.size() > 10)
+			name = name.substr(0,10);
+		file_object << std::setw(14) << std::left << name;
+		for(auto j=0; j<nReads; j++){
+			double kdxy = d_matrix[i][j];
+			file_object << kdxy << ((j==nReads-1)?"":" ");
+		}
+		file_object << std::endl;
+	}
+}
+
+void write_file(RunArgs& args){
+	std::ofstream obj_file;
+	obj_file.open("d_matrix.txt");
+	write_dmatrix(args.d_matrix, args.title_vector, obj_file);
+	obj_file.close();
 }
 
 int main(int argc, char *argv[]) {
@@ -471,26 +533,31 @@ int main(int argc, char *argv[]) {
 	RunArgs args;
 	read_input(argc, argv, args);
 
-    GST gst;
-	construct_gst(args.x, args.y, gst);
-
 	time_t t;
-	t = clock();
 
-	std::vector<int> match_length, left_match, right_match;
+	for(auto i=0; i<args.m; i++){
+		for(auto j=i+1; j<args.m; j++){
+			assign_strings(args, i, j);
+    	GST gst;
+			construct_gst(args.x, args.y, gst);
+			t = clock();
+			std::vector<int> match_length, left_match, right_match;
 
-    // find the longest matching suffixes to the left and right
-	//  of suffix in GST
-    find_matches(args, gst, match_length, left_match, right_match);
+    	// find the longest matching suffixes to the left and right
+			//  of suffix in GST
+    	find_matches(args, gst, match_length, left_match, right_match);
 
-	if(args.k==0){ // ACS for k = 0 can be computed from the match lengths
-        compute_acs_zero(args, gst, match_length);
+			if(args.k==0){ // ACS for k = 0 can be computed from the match lengths
+        		compute_acs_zero(args, gst, match_length);
+				}
+			else {
+        		compute_acsk(args, gst, match_length, left_match, right_match);
+				}
+			t = clock() - t;
+			std::cout << "time = " << (float)t/CLOCKS_PER_SEC << " (s) " << std::endl;
+		}
 	}
-	else {
-        compute_acsk(args, gst, match_length, left_match, right_match);
-	}
-
-	t = clock() - t;
-	std::cout << "time = " << (float)t/CLOCKS_PER_SEC << " (s) " << std::endl;
+	fill_2D_dmatrix(args);
+	write_file(args);
 	return 0;
 }
