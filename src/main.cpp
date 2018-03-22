@@ -533,7 +533,7 @@ int main(int argc, char *argv[]) {
 	RunArgs args;
 	read_input(argc, argv, args);
 
-	time_t t;
+	time_t t, t_total=0;
 
 	for(auto i=0; i<args.m; i++){
 		for(auto j=i+1; j<args.m; j++){
@@ -554,9 +554,10 @@ int main(int argc, char *argv[]) {
         		compute_acsk(args, gst, match_length, left_match, right_match);
 				}
 			t = clock() - t;
-			std::cout << "time = " << (float)t/CLOCKS_PER_SEC << " (s) " << std::endl;
+			t_total += t;
 		}
 	}
+	std::cout << "time = " << (float)t_total/CLOCKS_PER_SEC << " (s) " << std::endl;
 	fill_2D_dmatrix(args);
 	write_file(args);
 	return 0;
